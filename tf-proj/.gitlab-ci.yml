@@ -1,0 +1,63 @@
+# Определяем этапы
+stages:
+  - validate
+  - fmt
+  - plan
+  - apply
+  - destroy
+
+# Docker-образ с установленным Terraform и зеркалом яндекса, собран локально на gitlab-runner
+image:
+  name: mirror-yandex-terraform:latest
+  entrypoint: [""]
+
+# Кэшируем плагины Terraform для ускорения выполнения
+cache:
+  key: terraform
+  paths:
+    - .terraform+
+
+# Задаем команды, которые будут выполняться вначале каждого этапа
+before_script:
+  - terraform --version
+  - terraform init
+
+# Проверяем корректность tf 
+validate:
+  stage: validate
+  script:
+    - terraform validate
+
+# Проверяем форматирование и на лету исправляем если что-то не так
+fmt:
+  stage: fmt
+  script:
+    - terraform fmt -recursive -write
+  allow_failure: true
+
+# Запускаем план с записью в файл, и передаем его на последующие этапы
+plan:
+  stage: plan
+  script:
+    - terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - tfplan
+  only:
+    - main # Запускать только для ветки main
+
+apply:
+  stage: apply
+  script:
+    - terraform apply -auto-approve tfplan
+  when: manual # Применение вручную
+  only:
+    - main # Запускать только для ветки main
+
+# destroy:
+#   stage: destroy
+#   script:
+#     - terraform destroy -auto-approve
+#   when: manual # Уничтожение вручную
+#   only:
+#     - main # Запускать только для ветки main 
